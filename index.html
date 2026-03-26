@@ -1,0 +1,63 @@
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  font-family: sans-serif;
+  text-align: center;
+}
+#timer {
+  font-size: 48px;
+  margin-top: 10px;
+}
+input {
+  font-size: 16px;
+  padding: 5px;
+  width: 80px;
+}
+button {
+  padding: 6px 10px;
+  margin-left: 5px;
+}
+</style>
+</head>
+<body>
+
+<div>
+  <input id="minutesInput" type="number" placeholder="Minutes" value=10>
+  <button onclick="startTimer()">Start</button>
+</div>
+
+<div id="timer">00:00</div>
+
+<script>
+let interval;
+
+function startTimer() {
+  clearInterval(interval);
+
+  let minutes = document.getElementById("minutesInput").value;
+  let time = minutes * 60;
+
+  const timerEl = document.getElementById("timer");
+
+  interval = setInterval(() => {
+    let m = Math.floor(time / 60);
+    let s = time % 60;
+
+    s = s < 10 ? "0" + s : s;
+    m = m < 10 ? "0" + m : m;
+
+    timerEl.textContent = `${m}:${s}`;
+
+    if (time <= 0) {
+      clearInterval(interval);
+    }
+
+    time--;
+  }, 1000);
+}
+</script>
+
+</body>
+</html>
