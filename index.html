@@ -30,7 +30,7 @@
       display: flex;
       justify-content: center;
       align-items: flex-start;
-      padding-top: 40px;
+      padding-top: 36px;
       padding-bottom: 12px;
     }
 
@@ -88,9 +88,7 @@
       flex: 0 0 auto;
     }
 
-    button:active {
-      transform: translateY(1px);
-    }
+    button:active { transform: translateY(1px); }
 
     button:focus-visible,
     .timer:focus-visible {
@@ -107,8 +105,7 @@
 </head>
 <body>
   <div class="card">
-    <div class="timer" id="timer" contenteditable="true" aria-label="Countdown timer">10:00</div>
-
+    <input id="timer" class="timer" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-label="Countdown timer" value="10:00" />
     <button id="startBtn" aria-label="Start" type="button">
       <svg id="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M8 5.5L19 12L8 18.5V5.5Z" />
@@ -126,8 +123,9 @@
     let running = false;
     let interval = null;
     let isEditing = false;
-    let skipBlurCommit = false;
+    let editDirty = false;
     let editSnapshot = '10:00';
+    let displayMode = 'm';
 
     const params = new URLSearchParams(window.location.search);
 
@@ -147,7 +145,6 @@
     const hVal = getNum(['hours', 'hour', 'h']);
     const mVal = getNum(['minutes', 'mins', 'min', 'm']);
     const sVal = getNum(['seconds', 'secs', 'sec', 's']);
-    const mode = dVal > 0 ? 'd' : (hVal > 0 ? 'h' : 'm');
 
     function isDigits(text) {
       if (text.length === 0) return false;
@@ -173,24 +170,16 @@
       document.documentElement.style.setProperty('--ui-scale', String(scale));
     }
 
-    function format(sec) {
+    function format(sec, mode = displayMode) {
       const safe = Math.max(0, Math.floor(sec));
       const days = Math.floor(safe / 86400);
       const hours = Math.floor((safe % 86400) / 3600);
       const minutes = Math.floor((safe % 3600) / 60);
       const seconds = safe % 60;
 
-      if (mode === 'd') {
-        return `${pad(days)}:${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-      }
-
-      if (mode === 'h') {
-        const totalHours = Math.floor(safe / 3600);
-        return `${pad(totalHours)}:${pad(minutes)}:${pad(seconds)}`;
-      }
-
-      const totalMinutes = Math.floor(safe / 60);
-      return `${pad(totalMinutes)}:${pad(seconds)}`;
+      if (mode === 'd') return `${pad(days)}:${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+      if (mode === 'h') return `${pad(Math.floor(safe / 3600))}:${pad(minutes)}:${pad(seconds)}`;
+      return `${pad(Math.floor(safe / 60))}:${pad(seconds)}`;
     }
 
     function parse(text) {
@@ -199,23 +188,50 @@
 
       if (raw.indexOf(':') !== -1) {
         const parts = raw.split(':');
-        if (parts.length !== 2) return 0;
-        const minutesRaw = parts[0].trim();
-        const secondsRaw = parts[1].trim();
-        if (secondsRaw === '' || !isDigits(secondsRaw)) return 0;
-        if (minutesRaw !== '' && !isDigits(minutesRaw)) return 0;
-        const minutes = minutesRaw === '' ? 0 : Number(minutesRaw);
+        if (parts.length < 2 || parts.length > 4) return 0;
+        const nums = parts.map((part) => part.trim());
+
+        if (parts.length === 2) {
+          const minutesRaw = nums[0];
+          const secondsRaw = nums[1];
+          if (secondsRaw === '' || !isDigits(secondsRaw)) return 0;
+          if (minutesRaw !== '' && !isDigits(minutesRaw)) return 0;
+          const minutes = minutesRaw === '' ? 0 : Number(minutesRaw);
+          const seconds = Number(secondsRaw);
+          if (seconds > 59) return 0;
+          displayMode = 'm';
+          return (minutes * 60) + seconds;
+        }
+
+        if (parts.length === 3) {
+          const [hoursRaw, minutesRaw, secondsRaw] = nums;
+          if (![hoursRaw, minutesRaw, secondsRaw].every(isDigits)) return 0;
+          const hours = Number(hoursRaw);
+          const minutes = Number(minutesRaw);
+          const seconds = Number(secondsRaw);
+          if (minutes > 59 || seconds > 59) return 0;
+          displayMode = 'h';
+          return (hours * 3600) + (minutes * 60) + seconds;
+        }
+
+        const [daysRaw, hoursRaw, minutesRaw, secondsRaw] = nums;
+        if (![daysRaw, hoursRaw, minutesRaw, secondsRaw].every(isDigits)) return 0;
+        const days = Number(daysRaw);
+        const hours = Number(hoursRaw);
+        const minutes = Number(minutesRaw);
         const seconds = Number(secondsRaw);
-        if (seconds > 59) return 0;
-        return (minutes * 60) + seconds;
+        if (hours > 23 || minutes > 59 || seconds > 59) return 0;
+        displayMode = 'd';
+        return (days * 86400) + (hours * 3600) + (minutes * 60) + seconds;
       }
 
       if (!isDigits(raw)) return 0;
+      displayMode = 'm';
       return Number(raw) * 60;
     }
 
     function updateIcon() {
-      const shouldShowPlay = isEditing || !running;
+      const shouldShowPlay = (!running) || editDirty;
       btn.setAttribute('aria-label', shouldShowPlay ? 'Start' : 'Pause');
       icon.innerHTML = shouldShowPlay
         ? '<path d="M8 5.5L19 12L8 18.5V5.5Z" />'
@@ -223,9 +239,10 @@
     }
 
     function render() {
-      if (!isEditing) {
+      const shouldLiveUpdate = !isEditing || !editDirty;
+      if (shouldLiveUpdate) {
         const text = format(remaining);
-        timerEl.textContent = text;
+        timerEl.value = text;
         updateWidth(text);
       }
     }
@@ -257,7 +274,7 @@
         return;
       }
       remaining -= 1;
-      if (!isEditing) render();
+      render();
       if (remaining <= 0) {
         stop();
         render();
@@ -265,12 +282,13 @@
     }
 
     function commitAndOptionallyStart(shouldStart) {
-      const parsed = parse(timerEl.textContent);
+      const parsed = parse(timerEl.value);
       if (parsed > 0) {
         total = parsed;
         remaining = parsed;
       }
       isEditing = false;
+      editDirty = false;
       render();
       updateIcon();
       if (shouldStart && parsed > 0 && !running) start();
@@ -278,7 +296,8 @@
 
     function cancelEdit() {
       isEditing = false;
-      timerEl.textContent = editSnapshot;
+      editDirty = false;
+      timerEl.value = editSnapshot;
       updateWidth(editSnapshot);
       render();
       updateIcon();
@@ -286,18 +305,15 @@
 
     function selectAll() {
       requestAnimationFrame(() => {
-        const range = document.createRange();
-        range.selectNodeContents(timerEl);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
+        timerEl.setSelectionRange(0, timerEl.value.length);
       });
     }
 
     timerEl.addEventListener('focus', () => {
       isEditing = true;
+      editDirty = false;
       editSnapshot = format(remaining);
-      timerEl.textContent = editSnapshot;
+      timerEl.value = editSnapshot;
       updateWidth(editSnapshot);
       updateIcon();
       selectAll();
@@ -306,7 +322,6 @@
     timerEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        skipBlurCommit = true;
         commitAndOptionallyStart(true);
         timerEl.blur();
         return;
@@ -314,7 +329,6 @@
 
       if (e.key === 'Escape') {
         e.preventDefault();
-        skipBlurCommit = true;
         cancelEdit();
         timerEl.blur();
         return;
@@ -326,20 +340,18 @@
     });
 
     timerEl.addEventListener('blur', () => {
-      if (skipBlurCommit) {
-        skipBlurCommit = false;
+      if (!editDirty) {
+        isEditing = false;
+        updateIcon();
       } else {
         cancelEdit();
       }
-
-      const sel = window.getSelection();
-      if (sel) sel.removeAllRanges();
     });
 
     timerEl.addEventListener('input', () => {
-      const cleaned = timerEl.textContent.replace(/[^0-9:]/g, '');
-      timerEl.textContent = cleaned;
-      updateWidth(cleaned || editSnapshot);
+      editDirty = timerEl.value !== editSnapshot;
+      updateWidth(timerEl.value || editSnapshot);
+      updateIcon();
     });
 
     timerEl.addEventListener('paste', (e) => {
@@ -347,15 +359,19 @@
       const text = (e.clipboardData || window.clipboardData).getData('text');
       const cleaned = text.replace(/[^0-9:]/g, '');
       document.execCommand('insertText', false, cleaned);
-      updateWidth(timerEl.textContent);
+      editDirty = timerEl.value !== editSnapshot;
+      updateWidth(timerEl.value);
+      updateIcon();
     });
 
     btn.addEventListener('mousedown', () => {
-      if (isEditing) skipBlurCommit = true;
+      if (isEditing && editDirty) {
+        // keep edit state; click will commit
+      }
     });
 
     btn.addEventListener('click', () => {
-      if (isEditing) {
+      if (isEditing && editDirty) {
         commitAndOptionallyStart(true);
         return;
       }
@@ -369,10 +385,13 @@
     if (initialSeconds > 0) {
       total = initialSeconds;
       remaining = initialSeconds;
+      if (dVal > 0) displayMode = 'd';
+      else if (hVal > 0) displayMode = 'h';
+      else displayMode = 'm';
     }
 
     const initialText = format(remaining);
-    timerEl.textContent = initialText;
+    timerEl.value = initialText;
     updateWidth(initialText);
     updateIcon();
   </script>
