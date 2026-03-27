@@ -240,10 +240,25 @@
 
     function render() {
       const shouldLiveUpdate = !isEditing || !editDirty;
-      if (shouldLiveUpdate) {
-        const text = format(remaining);
-        timerEl.value = text;
-        updateWidth(text);
+      if (!shouldLiveUpdate) return;
+
+      const focused = document.activeElement === timerEl;
+      const start = focused ? timerEl.selectionStart : null;
+      const end = focused ? timerEl.selectionEnd : null;
+      const direction = focused ? timerEl.selectionDirection : 'none';
+
+      const text = format(remaining);
+      timerEl.value = text;
+      updateWidth(text);
+
+      if (focused && start !== null && end !== null && start !== end) {
+        requestAnimationFrame(() => {
+          try {
+            timerEl.setSelectionRange(start, end, direction);
+          } catch (_) {
+            // Ignore selection restore errors.
+          }
+        });
       }
     }
 
