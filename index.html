@@ -11,6 +11,7 @@
       --border: #e5e7eb;
       --accent: #111111;
       --focus: rgba(17, 17, 17, 0.05);
+      --ui-scale: 1;
     }
 
     * { box-sizing: border-box; }
@@ -20,22 +21,26 @@
       padding: 0;
       background: transparent;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
     }
 
     body {
-      display: inline-block;
-      overflow: hidden;
-      padding-top: 28px; /* buffer for Notion overlay */
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 33px;
     }
 
     .card {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: calc(10px * var(--ui-scale));
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 6px;
+      border-radius: calc(14px * var(--ui-scale));
+      padding: calc(10px * var(--ui-scale));
       box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
       width: fit-content;
     }
@@ -44,11 +49,11 @@
       width: auto;
       min-width: 5.8ch;
       border: 1px solid transparent;
-      border-radius: 8px;
-      padding: 2px 6px;
+      border-radius: calc(8px * var(--ui-scale));
+      padding: calc(2px * var(--ui-scale)) calc(6px * var(--ui-scale));
       text-align: center;
       font: inherit;
-      font-size: 22px;
+      font-size: calc(28px * var(--ui-scale));
       font-weight: 700;
       line-height: 1.2;
       color: var(--text);
@@ -57,7 +62,7 @@
       caret-color: var(--accent);
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.03em;
-      min-height: 28px;
+      min-height: calc(28px * var(--ui-scale));
       white-space: nowrap;
     }
 
@@ -68,9 +73,9 @@
 
     button {
       border: none;
-      border-radius: 8px;
-      width: 34px;
-      height: 34px;
+      border-radius: calc(8px * var(--ui-scale));
+      width: calc(44px * var(--ui-scale));
+      height: calc(44px * var(--ui-scale));
       background: var(--accent);
       color: white;
       display: flex;
@@ -92,8 +97,8 @@
     }
 
     svg {
-      width: 14px;
-      height: 14px;
+      width: calc(18px * var(--ui-scale));
+      height: calc(18px * var(--ui-scale));
       display: block;
     }
   </style>
@@ -140,7 +145,6 @@
     const hVal = getNum(['hours', 'hour', 'h']);
     const mVal = getNum(['minutes', 'mins', 'min', 'm']);
     const sVal = getNum(['seconds', 'secs', 'sec', 's']);
-
     const mode = dVal > 0 ? 'd' : (hVal > 0 ? 'h' : 'm');
 
     function isDigits(text) {
@@ -158,6 +162,13 @@
     function updateWidth(text) {
       const len = Math.max(5.8, String(text).length + 0.5);
       timerEl.style.width = `${len}ch`;
+    }
+
+    function updateScale() {
+      const w = window.innerWidth || 320;
+      const h = window.innerHeight || 120;
+      const scale = Math.max(0.72, Math.min(w / 420, h / 120, 1.45));
+      document.documentElement.style.setProperty('--ui-scale', String(scale));
     }
 
     function format(sec) {
@@ -348,6 +359,9 @@
       }
       start();
     });
+
+    window.addEventListener('resize', updateScale);
+    updateScale();
 
     const initialSeconds = (dVal * 86400) + (hVal * 3600) + (mVal * 60) + sVal;
     if (initialSeconds > 0) {
