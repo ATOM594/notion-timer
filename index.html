@@ -22,7 +22,11 @@
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    body { display: inline-block; overflow: hidden; }
+    body {
+      display: inline-block;
+      overflow: hidden;
+      padding-top: 28px; /* buffer for Notion overlay */
+    }
 
     .card {
       display: inline-flex;
@@ -44,7 +48,7 @@
       padding: 2px 6px;
       text-align: center;
       font: inherit;
-      font-size: 18px;
+      font-size: 22px;
       font-weight: 700;
       line-height: 1.2;
       color: var(--text);
@@ -57,13 +61,16 @@
       white-space: nowrap;
     }
 
-    .timer:focus { background: var(--focus); border-color: var(--border); }
+    .timer:focus {
+      background: var(--focus);
+      border-color: var(--border);
+    }
 
     button {
       border: none;
       border-radius: 8px;
-      width: 28px;
-      height: 28px;
+      width: 34px;
+      height: 34px;
       background: var(--accent);
       color: white;
       display: flex;
@@ -74,14 +81,21 @@
       flex: 0 0 auto;
     }
 
-    button:active { transform: translateY(1px); }
+    button:active {
+      transform: translateY(1px);
+    }
 
-    button:focus-visible, .timer:focus-visible {
+    button:focus-visible,
+    .timer:focus-visible {
       outline: 2px solid rgba(17, 17, 17, 0.18);
       outline-offset: 2px;
     }
 
-    svg { width: 12px; height: 12px; display: block; }
+    svg {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -113,29 +127,33 @@
     function getNum(keys) {
       for (const k of keys) {
         if (params.has(k)) {
-          const v = Number(params.get(k));
+          const raw = params.get(k);
+          const v = raw === null || raw === '' ? 1 : Number(raw);
           if (Number.isFinite(v) && v >= 0) return v;
-          return 1; // presence-only => 1
+          return 1;
         }
       }
       return 0;
     }
 
-    const dVal = getNum(['days','day','d']);
-    const hVal = getNum(['hours','hour','h']);
-    const mVal = getNum(['minutes','mins','min','m']);
-    const sVal = getNum(['seconds','secs','sec','s']);
+    const dVal = getNum(['days', 'day', 'd']);
+    const hVal = getNum(['hours', 'hour', 'h']);
+    const mVal = getNum(['minutes', 'mins', 'min', 'm']);
+    const sVal = getNum(['seconds', 'secs', 'sec', 's']);
 
-    // Determine display mode by highest provided unit
-    const mode = dVal > 0 ? 'd' : (hVal > 0 ? 'h' : (mVal > 0 || sVal > 0 ? 'm' : 'default'));
+    const mode = dVal > 0 ? 'd' : (hVal > 0 ? 'h' : 'm');
 
     function isDigits(text) {
       if (text.length === 0) return false;
-      for (const ch of text) if (ch < '0' || ch > '9') return false;
+      for (const ch of text) {
+        if (ch < '0' || ch > '9') return false;
+      }
       return true;
     }
 
-    function pad(n) { return String(n).padStart(2, '0'); }
+    function pad(n) {
+      return String(n).padStart(2, '0');
+    }
 
     function updateWidth(text) {
       const len = Math.max(5.8, String(text).length + 0.5);
@@ -158,7 +176,6 @@
         return `${pad(totalHours)}:${pad(minutes)}:${pad(seconds)}`;
       }
 
-      // minutes+seconds (default and m/s modes)
       const totalMinutes = Math.floor(safe / 60);
       return `${pad(totalMinutes)}:${pad(seconds)}`;
     }
@@ -172,8 +189,9 @@
         if (parts.length !== 2) return 0;
         const minutesRaw = parts[0].trim();
         const secondsRaw = parts[1].trim();
-        if (!isDigits(minutesRaw) || !isDigits(secondsRaw)) return 0;
-        const minutes = Number(minutesRaw);
+        if (secondsRaw === '' || !isDigits(secondsRaw)) return 0;
+        if (minutesRaw !== '' && !isDigits(minutesRaw)) return 0;
+        const minutes = minutesRaw === '' ? 0 : Number(minutesRaw);
         const seconds = Number(secondsRaw);
         if (seconds > 59) return 0;
         return (minutes * 60) + seconds;
@@ -181,6 +199,14 @@
 
       if (!isDigits(raw)) return 0;
       return Number(raw) * 60;
+    }
+
+    function updateIcon() {
+      const shouldShowPlay = isEditing || !running;
+      btn.setAttribute('aria-label', shouldShowPlay ? 'Start' : 'Pause');
+      icon.innerHTML = shouldShowPlay
+        ? '<path d="M8 5.5L19 12L8 18.5V5.5Z" />'
+        : '<path d="M6 5h4v14H6zM14 5h4v14h-4z" />';
     }
 
     function render() {
@@ -191,36 +217,49 @@
       }
     }
 
-    function updateIcon() {
-      btn.setAttribute('aria-label', running ? 'Pause' : 'Start');
-      icon.innerHTML = running
-        ? '<path d="M6 5h4v14H6zM14 5h4v14h-4z" />'
-        : '<path d="M8 5.5L19 12L8 18.5V5.5Z" />';
-    }
-
     function stop() {
       running = false;
-      if (interval) { clearInterval(interval); interval = null; }
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
       updateIcon();
     }
 
     function start() {
-      if (running) { stop(); return; }
+      if (running) {
+        stop();
+        return;
+      }
       if (remaining <= 0) remaining = total;
-      running = true; updateIcon(); interval = setInterval(tick, 1000);
+      running = true;
+      updateIcon();
+      interval = setInterval(tick, 1000);
     }
 
     function tick() {
-      if (remaining <= 0) { stop(); render(); return; }
+      if (remaining <= 0) {
+        stop();
+        render();
+        return;
+      }
       remaining -= 1;
       if (!isEditing) render();
-      if (remaining <= 0) { stop(); render(); }
+      if (remaining <= 0) {
+        stop();
+        render();
+      }
     }
 
     function commitAndOptionallyStart(shouldStart) {
       const parsed = parse(timerEl.textContent);
-      if (parsed > 0) { total = parsed; remaining = parsed; }
-      isEditing = false; render();
+      if (parsed > 0) {
+        total = parsed;
+        remaining = parsed;
+      }
+      isEditing = false;
+      render();
+      updateIcon();
       if (shouldStart && parsed > 0 && !running) start();
     }
 
@@ -229,6 +268,7 @@
       timerEl.textContent = editSnapshot;
       updateWidth(editSnapshot);
       render();
+      updateIcon();
     }
 
     function selectAll() {
@@ -236,7 +276,8 @@
         const range = document.createRange();
         range.selectNodeContents(timerEl);
         const sel = window.getSelection();
-        sel.removeAllRanges(); sel.addRange(range);
+        sel.removeAllRanges();
+        sel.addRange(range);
       });
     }
 
@@ -245,6 +286,7 @@
       editSnapshot = format(remaining);
       timerEl.textContent = editSnapshot;
       updateWidth(editSnapshot);
+      updateIcon();
       selectAll();
     });
 
@@ -256,24 +298,35 @@
         timerEl.blur();
         return;
       }
+
       if (e.key === 'Escape') {
         e.preventDefault();
         skipBlurCommit = true;
         cancelEdit();
         timerEl.blur();
+        return;
+      }
+
+      if (e.key.length === 1 && !/[0-9:]/.test(e.key)) {
+        e.preventDefault();
       }
     });
 
     timerEl.addEventListener('blur', () => {
-      if (skipBlurCommit) skipBlurCommit = false; else cancelEdit();
-      const sel = window.getSelection(); if (sel) sel.removeAllRanges();
+      if (skipBlurCommit) {
+        skipBlurCommit = false;
+      } else {
+        cancelEdit();
+      }
+
+      const sel = window.getSelection();
+      if (sel) sel.removeAllRanges();
     });
 
-    // Handle typing without breaking backspace
-    timerEl.addEventListener('keydown', (e) => {
-      if (e.key.length === 1 && !/[0-9:]/.test(e.key)) {
-        e.preventDefault();
-      }
+    timerEl.addEventListener('input', () => {
+      const cleaned = timerEl.textContent.replace(/[^0-9:]/g, '');
+      timerEl.textContent = cleaned;
+      updateWidth(cleaned || editSnapshot);
     });
 
     timerEl.addEventListener('paste', (e) => {
@@ -284,9 +337,18 @@
       updateWidth(timerEl.textContent);
     });
 
-    btn.addEventListener('click', start);
+    btn.addEventListener('mousedown', () => {
+      if (isEditing) skipBlurCommit = true;
+    });
 
-    // Build initial total from params (independent values)
+    btn.addEventListener('click', () => {
+      if (isEditing) {
+        commitAndOptionallyStart(true);
+        return;
+      }
+      start();
+    });
+
     const initialSeconds = (dVal * 86400) + (hVal * 3600) + (mVal * 60) + sVal;
     if (initialSeconds > 0) {
       total = initialSeconds;
